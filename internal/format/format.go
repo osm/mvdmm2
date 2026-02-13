@@ -1,6 +1,9 @@
 package format
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 func Time(seconds float64) string {
 	totalSeconds := int(seconds)
@@ -45,4 +48,31 @@ func Model(model string, skin byte) string {
 	default:
 		return model
 	}
+}
+
+func TrimColor(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+
+	isHex := func(c byte) bool {
+		return (c >= '0' && c <= '9') ||
+			(c >= 'a' && c <= 'f') ||
+			(c >= 'A' && c <= 'F')
+	}
+
+	for i := 0; i < len(s); i++ {
+		if s[i] == '{' || s[i] == '}' {
+			continue
+		}
+
+		if s[i] == '&' && i+4 < len(s) && s[i+1] == 'c' &&
+			isHex(s[i+2]) && isHex(s[i+3]) && isHex(s[i+4]) {
+			i += 4
+			continue
+		}
+
+		b.WriteByte(s[i])
+	}
+
+	return b.String()
 }

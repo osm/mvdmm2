@@ -12,7 +12,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Printf("usage: %s <demo.mvd> [all|sum]\n", os.Args[0])
+		fmt.Printf("usage: %s <demo.mvd> [all|sum|log]\n", os.Args[0])
 		os.Exit(1)
 	}
 
@@ -24,20 +24,22 @@ func main() {
 	}
 
 	p := mvdparser.New()
-	events, err := p.Parse(mvdData)
+	stats, err := p.Parse(mvdData)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: unable to parse %v, %v\n", mvdPath, err)
 		os.Exit(1)
 	}
 
 	if len(os.Args) == 3 && os.Args[2] == "all" {
-		allStats(events)
+		allEvents(stats.Events)
+	} else if len(os.Args) == 3 && os.Args[2] == "sum" {
+		sumEvents(stats.Events)
 	} else {
-		groupStats(events)
+		printMessages(stats.Messages)
 	}
 }
 
-func allStats(events []mvdparser.Event) {
+func allEvents(events []mvdparser.Event) {
 	for _, ev := range events {
 		if ev.Item == "" {
 			fmt.Printf("%s: %s %s\n", format.Time(ev.Timestamp), ev.Name, ev.Type)
@@ -47,7 +49,7 @@ func allStats(events []mvdparser.Event) {
 	}
 }
 
-func groupStats(events []mvdparser.Event) {
+func sumEvents(events []mvdparser.Event) {
 	type Stats struct {
 		Lost       int
 		LostReport int
@@ -89,5 +91,11 @@ func groupStats(events []mvdparser.Event) {
 			stats[name].LostReport, stats[name].Lost,
 			stats[name].TookReport, stats[name].Took,
 		)
+	}
+}
+
+func printMessages(messages []mvdparser.Message) {
+	for _, m := range messages {
+		fmt.Printf("[%s] %s\n", format.Time(m.Timestamp), format.TrimColor(m.String))
 	}
 }

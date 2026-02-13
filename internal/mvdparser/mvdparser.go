@@ -1,6 +1,7 @@
 package mvdparser
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -32,6 +33,16 @@ const (
 	TookReport Type = "took-report"
 )
 
+type Stats struct {
+	Events   []Event
+	Messages []Message
+}
+
+type Message struct {
+	Timestamp float64
+	String    string
+}
+
 type Event struct {
 	Timestamp float64
 	Name      string
@@ -52,7 +63,9 @@ type Parser struct {
 	models   []string
 	players  map[byte]string
 	started  bool
+	ended    bool
 	events   []Event
+	messages []Message
 }
 
 func New() *Parser {
@@ -63,7 +76,7 @@ func New() *Parser {
 	}
 }
 
-func (p *Parser) Parse(data []byte) ([]Event, error) {
+func (p *Parser) Parse(data []byte) (*Stats, error) {
 	demo, err := mvd.Parse(context.New(), data)
 	if err != nil {
 		return nil, err
@@ -106,7 +119,10 @@ func (p *Parser) Parse(data []byte) ([]Event, error) {
 		}
 	}
 
-	return p.events, nil
+	return &Stats{
+		Events:   p.events,
+		Messages: p.messages,
+	}, nil
 }
 
 func (p *Parser) handleModellist(cmd *modellist.Command) {
@@ -196,16 +212,28 @@ func (p *Parser) handleKTX(args []string) error {
 			Type:      Took,
 			Item:      item,
 		})
+		p.messages = append(p.messages, Message{
+			Timestamp: p.elapsed,
+			String:    fmt.Sprintf("took %s %s", p.players[byte(playerID)], item),
+		})
 	}
 
 	return nil
 }
 
 func (p *Parser) handlePrint(c *print.Command) {
-	s := strings.TrimRight(ascii.Parse(c.String), "\r\n")
+	s := ascii.Parse(c.String)
+	s = strings.TrimRight(s, "\r\n")
+	s = strings.ReplaceAll(s, "\r", ">")
 
 	isMM2 := strings.HasPrefix(s, "(")
 	now := time.Unix(0, int64(p.elapsed*1e9))
+
+	if s == "The match is over" || p.ended {
+		p.ended = true
+		return
+	}
+
 	if !isMM2 {
 		ob, ok := death.Parse(s)
 		if ok {
@@ -216,6 +244,11 @@ func (p *Parser) handlePrint(c *print.Command) {
 					Type:      Lost,
 				})
 			}
+
+			p.messages = append(p.messages, Message{
+				Timestamp: p.elapsed,
+				String:    fmt.Sprintf("%s", ob),
+			})
 		}
 	} else if isMM2 && p.filter.Allow(now, s) {
 		if strings.Contains(s, "drop") || strings.Contains(s, "lost") {
@@ -231,8 +264,12 @@ func (p *Parser) handlePrint(c *print.Command) {
 				Type:      TookReport,
 			})
 		}
-	}
 
+		p.messages = append(p.messages, Message{
+			Timestamp: p.elapsed,
+			String:    s,
+		})
+	}
 }
 
 func parseMM2Name(input string) string {
