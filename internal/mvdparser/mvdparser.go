@@ -225,6 +225,7 @@ func (p *Parser) handlePrint(c *print.Command) {
 	s := ascii.Parse(c.String)
 	s = strings.TrimRight(s, "\r\n")
 	s = strings.ReplaceAll(s, "\r", ">")
+	lower := strings.ToLower(s)
 
 	isMM2 := strings.HasPrefix(s, "(")
 	now := time.Unix(0, int64(p.elapsed*1e9))
@@ -251,13 +252,13 @@ func (p *Parser) handlePrint(c *print.Command) {
 			})
 		}
 	} else if isMM2 && p.filter.Allow(now, s) {
-		if strings.Contains(s, "drop") || strings.Contains(s, "lost") {
+		if strings.Contains(lower, "drop") || strings.Contains(lower, "lost") {
 			p.events = append(p.events, Event{
 				Timestamp: p.elapsed,
 				Name:      parseMM2Name(s),
 				Type:      LostReport,
 			})
-		} else if strings.Contains(s, "took") || strings.Contains(s, "team") {
+		} else if strings.Contains(lower, "took") || strings.Contains(lower, "team") {
 			p.events = append(p.events, Event{
 				Timestamp: p.elapsed,
 				Name:      parseMM2Name(s),
